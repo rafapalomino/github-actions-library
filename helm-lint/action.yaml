@@ -1,0 +1,33 @@
+name: "Helm Chart Lint"
+description: "Runs basic Helm lint" 
+inputs: 
+  template_path: 
+    description: 'path to template' 
+    required: true 
+  lint_args: 
+    description: 'Adds additional arguments to "helm lint" command' 
+    required: false 
+runs: 
+  using: "composite" 
+  steps: 
+    - name: Lint chart 
+      id: lint
+      run: | 
+        helm lint ${{ inputs.template_path }} --with-subcharts --strict ${{ inputs.lint_args }} 2>&1 | tee lint_result.yaml 
+        result_code=${PIPESTATUS[0]}
+        exit $result_code
+      shell: bash
+ 
+    - name: Report Lint result 
+      uses: actions/github-script@v7
+      with: 
+        script: |
+          const fs = require('fs');
+          const lint_result = fs.readFileSync('lint_result.yaml', 'utf8');
+       
+          github.rest.issues.createComment ({
+            owner: context.repo.owner, 
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: 'Lint Helm chart:\n\n<details><summary>Show result</summary>\n\n' + lint_result + '\n\n</details>'
+          });

@@ -1,0 +1,45 @@
+name: "Helm Chart Render"
+description: "Runs basic Helm template render" 
+inputs: 
+  template_path: 
+    description: 'path to template' 
+    required: true 
+  report_full_template: 
+    description: 'Indicated if the full template should be posted to github comment. Consider switchit it off for massive charts'
+    default: true 
+    required: false 
+  template_args:
+    description: 'Adds additional arguments to "helm template" command' 
+    required: false 
+runs: 
+  using: "composite" 
+  steps: 
+    - name: Render template
+      run: | 
+        helm template testing ${{ inputs.template_path }} ${{ inputs.template_args }} 2>&1 | tee content.yaml 
+        result_code=${PIPESTATUS[0]}
+        exit $result_code
+      shell: bash
+ 
+    - name: Report Template result 
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const helm_results = fs.readFileSync('content.yaml', 'utf8');
+          let output = '### Rendered Helm chart:\n\n\`helm template testing ${{ inputs.template_path }} ${{ inputs.template_args }}\`'
+          
+          if (${{ inputs.report_full_template }}) {
+            output += `\n\n<details>\n\n<summary>Show rendered template</summary>\n\n\`\`\``;
+            output += helm_results;
+            output += `\n\`\`\`\n\n</details>\n`;
+          } else {
+            output += 'You can check the full output in Action step \`render-template\`' 
+          }
+          
+          github.rest.issues.createComment ({
+            owner: context.repo.owner, 
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: output
+          });
